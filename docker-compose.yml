@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: insuremate
+      POSTGRES_PASSWORD: insuremate
+      POSTGRES_DB: insuremate
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U insuremate"]
+      interval: 5s
+      retries: 10
+    ports: ["5432:5432"]
+
+  backend:
+    build: ./backend
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+psycopg://insuremate:insuremate@db:5432/insuremate
+      # Ollama runs on the host; reachable from the container via host.docker.internal
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      CHROMA_PATH: /app/storage/chroma
+      UPLOAD_DIR: /app/storage/uploads
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      db: {condition: service_healthy}
+    volumes: [storage:/app/storage]
+    ports: ["8000:8000"]
+    # SECRET_KEY, LLM_MODEL, EMBEDDING_MODEL etc. come from .env
+
+  frontend:
+    build: ./frontend
+    depends_on: [backend]
+    ports: ["5173:80"]
+
+volumes:
+  pgdata:
+  storage:
